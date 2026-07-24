@@ -106,8 +106,10 @@ body{font-family:"Hiragino Sans","Meiryo",sans-serif;color:#222;background:#f2f2
       ① 「最上位を追加」で一番上を登録<br>
       ② ノード下の「＋子を追加」で連絡先を追加<br>
       ③ ノードをクリックして名前・電話番号を編集<br>
-      ④ 「保存」でこのHTMLファイルに書き込み保存<br>
-      ⑤ 「連絡網を生成」で印刷プレビュー
+      ④ 「↑上に挿入」で既存のつながりの間に連絡先を割り込ませられます<br>
+      ⑤ 「削除」した連絡先の子は、自動的にその上位者へつながり直します（子ごと削除も選択可）<br>
+      ⑥ 「保存」でこのHTMLファイルに書き込み保存<br>
+      ⑦ 「連絡網を生成」で印刷プレビュー
     </div>
   </div>
   <div class="sidebar-actions">
@@ -123,8 +125,8 @@ body{font-family:"Hiragino Sans","Meiryo",sans-serif;color:#222;background:#f2f2
   <div class="edit-panel" id="edit-panel">
     <h3 id="edit-title">連絡先を入力</h3>
     <div class="edit-grid">
-      <div class="field"><label>氏名</label><input type="text" id="edit-name" placeholder="例：山田" /></div>
-      <div class="field"><label>電話番号</label><input type="text" id="edit-phone" placeholder="例：090-0000-0000" /></div>
+      <div class="field field-full"><label>氏名</label><input type="text" id="edit-name" placeholder="例：山田" /></div>
+      <div class="field field-full"><label>電話番号</label><input type="text" id="edit-phone" placeholder="例：090-0000-0000" /></div>
       <div class="field field-full"><label>電話番号２（任意）</label><input type="text" id="edit-phone2" placeholder="例：自宅 06-0000-0000" /></div>
     </div>
     <div class="field" id="email-field" style="margin-top:8px;display:none">
@@ -134,6 +136,16 @@ body{font-family:"Hiragino Sans","Meiryo",sans-serif;color:#222;background:#f2f2
     <div class="edit-btn-row">
       <button class="btn-sm btn-save" onclick="saveEdit()">保存</button>
       <button class="btn-sm btn-cancel" onclick="cancelEdit()">キャンセル</button>
+    </div>
+  </div>
+
+  <div class="edit-panel" id="delete-confirm-panel">
+    <h3>この連絡先を削除しますか？</h3>
+    <p id="delete-confirm-msg" style="font-size:12px;color:#666;margin-bottom:10px;line-height:1.6"></p>
+    <div class="edit-btn-row" style="flex-wrap:wrap">
+      <button class="btn-sm btn-save" onclick="confirmDelete('reconnect')">子を上位者に接続して削除</button>
+      <button class="btn-sm btn-save" style="background:#c0392b" onclick="confirmDelete('cascade')">子ごとすべて削除</button>
+      <button class="btn-sm btn-cancel" onclick="cancelDelete()">キャンセル</button>
     </div>
   </div>
 
@@ -277,17 +289,64 @@ function addChild(parentId){
   openEdit(id, false);
 }
 
+let pendingDeleteId = null;
+
 function deleteNode(id){
-  function descendants(pid){
-    let d=[];
-    nodes.forEach(n=>{ if(n.parentId===pid){d.push(n.id);d=d.concat(descendants(n.id));} });
-    return d;
-  }
-  const del=[id,...descendants(id)];
-  nodes=nodes.filter(n=>!del.includes(n.id));
-  if(del.includes(selectedId)) selectedId=null;
+  const children = nodes.filter(n=>n.parentId===id);
   closeEdit();
+  if(children.length===0){
+    // 子がいない場合は確認なしでそのまま削除
+    nodes = nodes.filter(n=>n.id!==id);
+    if(selectedId===id) selectedId=null;
+    renderEditor();
+    return;
+  }
+  // 子がいる場合は、削除方法（再接続 or 子ごと削除）を確認する
+  pendingDeleteId = id;
+  const node = nodes.find(n=>n.id===id);
+  document.getElementById('delete-confirm-msg').textContent =
+    `「${node.name||'（未入力）'}」には直属の連絡先が${children.length}件あります。`+
+    `「子を上位者に接続して削除」を選ぶと、子はこの連絡先の上位者に直接つながります。`;
+  document.getElementById('delete-confirm-panel').style.display='block';
+  document.getElementById('delete-confirm-panel').scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+function confirmDelete(mode){
+  const id = pendingDeleteId;
+  if(id===null) return;
+  const node = nodes.find(n=>n.id===id);
+  if(mode==='reconnect'){
+    // 子の parentId を、削除するノードの親（上位者）へつなぎ直す
+    nodes.forEach(n=>{ if(n.parentId===id) n.parentId = node.parentId; });
+    nodes = nodes.filter(n=>n.id!==id);
+  } else if(mode==='cascade'){
+    function descendants(pid){
+      let d=[];
+      nodes.forEach(n=>{ if(n.parentId===pid){d.push(n.id);d=d.concat(descendants(n.id));} });
+      return d;
+    }
+    const del=[id,...descendants(id)];
+    nodes=nodes.filter(n=>!del.includes(n.id));
+  }
+  if(selectedId===id) selectedId=null;
+  pendingDeleteId=null;
+  document.getElementById('delete-confirm-panel').style.display='none';
   renderEditor();
+}
+
+function cancelDelete(){
+  pendingDeleteId=null;
+  document.getElementById('delete-confirm-panel').style.display='none';
+}
+
+function insertAbove(id){
+  const node = nodes.find(n=>n.id===id);
+  if(!node) return;
+  const id2 = newId();
+  nodes.push({id:id2, name:'', phone:'', phone2:'', email:'', parentId:node.parentId});
+  node.parentId = id2;
+  renderEditor();
+  openEdit(id2, true);
 }
 
 function openEdit(id, isNew){
@@ -386,7 +445,7 @@ function makeEditorNode(tree){
   box.appendChild(inner);
   const acts=document.createElement('div');
   acts.className='node-actions';
-  acts.innerHTML=`<button class="nbtn del" onclick="event.stopPropagation();deleteNode(${n.id})">削除</button>`;
+  acts.innerHTML=`<button class="nbtn" onclick="event.stopPropagation();insertAbove(${n.id})">↑上に挿入</button><button class="nbtn del" onclick="event.stopPropagation();deleteNode(${n.id})">削除</button>`;
   box.appendChild(acts);
   col.appendChild(box);
 
