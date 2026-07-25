@@ -333,6 +333,7 @@
         <button class="btn ghost small" id="redrawBtn">くじを作り直す</button>
       </div>
       <div class="right-actions">
+        <button class="btn ghost small" id="soundToggleBtn" aria-pressed="true">🔊 音：ON</button>
         <button class="btn ghost small" id="backBtn">設定に戻る</button>
       </div>
     </div>
@@ -394,6 +395,60 @@
   }
 
   /* ---------------------------------------------------------
+     Sound effects (Web Audio API) - rising "pip" pulses while
+     a path is traced, plus a bright landing chime.
+  --------------------------------------------------------- */
+  var soundEnabled = true;
+  var audioCtx = null;
+
+  function ensureAudio(){
+    if(!audioCtx){
+      var Ctor = window.AudioContext || window.webkitAudioContext;
+      if(!Ctor) return null;
+      audioCtx = new Ctor();
+    }
+    if(audioCtx.state === 'suspended'){ audioCtx.resume(); }
+    return audioCtx;
+  }
+
+  function playTone(freq, when, duration, volume, type){
+    if(!soundEnabled) return;
+    var ctx = ensureAudio();
+    if(!ctx) return;
+    var t0 = ctx.currentTime + Math.max(0, when);
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, t0);
+    gain.gain.setValueAtTime(0, t0);
+    gain.gain.linearRampToValueAtTime(volume, t0 + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + duration + 0.03);
+  }
+
+  // Schedules a rising series of short "pip" blips at the given normalized
+  // time-fractions (0..1) of the reveal animation's total duration.
+  function schedulePipSequence(timeFractions, totalDurationMs){
+    if(!soundEnabled || timeFractions.length === 0) return;
+    var totalSec = totalDurationMs / 1000;
+    timeFractions.forEach(function(frac){
+      var when = frac * totalSec;
+      var freq = 330 * Math.pow(2, frac); // rises about one octave, start to end
+      playTone(freq, when, 0.06, 0.05, 'triangle');
+    });
+  }
+
+  function scheduleLandingChime(whenMs){
+    if(!soundEnabled) return;
+    var whenSec = whenMs / 1000;
+    playTone(880, whenSec, 0.16, 0.06, 'triangle');
+    playTone(1108.73, whenSec + 0.07, 0.22, 0.06, 'triangle');
+  }
+
+  /* ---------------------------------------------------------
      Elements
   --------------------------------------------------------- */
   var el = {
@@ -412,6 +467,7 @@
     ladderSvg: document.getElementById('ladderSvg'),
     revealAllBtn: document.getElementById('revealAllBtn'),
     redrawBtn: document.getElementById('redrawBtn'),
+    soundToggleBtn: document.getElementById('soundToggleBtn'),
     backBtn: document.getElementById('backBtn'),
     resultList: document.getElementById('resultList')
   };
@@ -691,6 +747,33 @@
     return { points: pts, endCol: trace.endCol };
   }
 
+  // Suspense pacing: steady motion for the first ~78% of the time, then a
+  // slow "held breath" crawl through the last stretch before a quick snap
+  // to the final result - gives the reveal a more deliberate, dramatic feel.
+  function suspenseEase(t){
+    if(t <= 0.78){
+      var local = t/0.78;
+      var eased = local<0.5 ? 2*local*local : -1+(4-2*local)*local; // ease-in-out quad
+      return eased * 0.80;
+    } else {
+      var local2 = (t-0.78)/0.22;
+      var eased2 = Math.pow(local2, 3); // near-frozen, then a quick snap at the very end
+      return 0.80 + eased2 * 0.20;
+    }
+  }
+
+  // Numeric inverse (bisection) - given a target progress fraction, find the
+  // normalized time t (0..1) at which suspenseEase(t) reaches it. Used so
+  // sound cues line up with wherever the marker actually is at that time.
+  function invertEase(targetFrac){
+    var lo = 0, hi = 1;
+    for(var k=0;k<24;k++){
+      var mid = (lo+hi)/2;
+      if(suspenseEase(mid) < targetFrac){ lo = mid; } else { hi = mid; }
+    }
+    return (lo+hi)/2;
+  }
+
   function pathLength(pts){
     var total = 0;
     for(var i=1;i<pts.length;i++){
@@ -737,14 +820,31 @@
     marker.setAttribute('cy', pts[0].y);
     state._svgGroups.gEffects.appendChild(marker);
 
-    var duration = Math.max(900, Math.min(2600, total * 2.6));
+    var duration = Math.max(2000, Math.min(4600, total * 4.6));
     var startTime = null;
+
+    // one pip per row-crossing point along the path (excludes the very
+    // start; the final point gets the landing chime instead of a pip).
+    // Each pip's playback time is derived from the same suspenseEase curve
+    // driving the visuals, so the "held breath" pause near the end is audible too.
+    var cum = 0, cumArr = [0];
+    for(var ci=1; ci<pts.length; ci++){
+      cum += Math.hypot(pts[ci].x-pts[ci-1].x, pts[ci].y-pts[ci-1].y);
+      cumArr.push(cum);
+    }
+    var pipTimeFractions = [];
+    for(ci=1; ci<pts.length-1; ci++){
+      var distFrac = total > 0 ? cumArr[ci]/total : 0;
+      pipTimeFractions.push(invertEase(distFrac));
+    }
+    schedulePipSequence(pipTimeFractions, duration);
+    scheduleLandingChime(duration);
 
     function frame(ts){
       if(startTime === null) startTime = ts;
       var elapsed = ts - startTime;
       var t = Math.min(1, elapsed/duration);
-      var eased = t<0.5 ? 2*t*t : -1+(4-2*t)*t; // easeInOutQuad
+      var eased = suspenseEase(t);
       var dist = eased * total;
       glowPath.setAttribute('stroke-dashoffset', total - dist);
       var p = pointAtDistance(pts, dist);
@@ -867,6 +967,13 @@
     buildLadder();
     resetResultLog();
     showLadderScreen();
+  });
+
+  el.soundToggleBtn.addEventListener('click', function(){
+    soundEnabled = !soundEnabled;
+    if(soundEnabled){ ensureAudio(); }
+    el.soundToggleBtn.textContent = soundEnabled ? '🔊 音：ON' : '🔇 音：OFF';
+    el.soundToggleBtn.setAttribute('aria-pressed', soundEnabled ? 'true' : 'false');
   });
 
   el.backBtn.addEventListener('click', function(){
