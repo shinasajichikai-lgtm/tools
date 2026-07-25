@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>あみだくじ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700;800&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy-deep:#0a1220;
+    --navy:#111d38;
+    --navy-light:#1c2c50;
+    --gold:#d8b34a;
+    --gold-bright:#f3cf5e;
+    --vermilion:#c1432a;
+    --paper:#f7efdd;
+    --paper-dark:#ecdfbe;
+    --ink:#2a2418;
+    --line:#4a5b82;
+    --line-soft:rgba(216,179,74,0.18);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    min-height:100vh;
+    background:
+      radial-gradient(circle at 15% 8%, rgba(216,179,74,0.10), transparent 42%),
+      radial-gradient(circle at 85% 88%, rgba(193,67,42,0.14), transparent 45%),
+      radial-gradient(circle at 90% 10%, rgba(216,179,74,0.08), transparent 35%),
+      linear-gradient(180deg, var(--navy-deep) 0%, var(--navy) 55%, var(--navy-deep) 100%);
+    background-attachment:fixed;
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    color:var(--paper);
+    padding:32px 16px 80px;
+    position:relative;
+    overflow-x:hidden;
+  }
+  body::before{
+    content:"";
+    position:fixed; inset:0; pointer-events:none; z-index:0;
+    background-image:
+      radial-gradient(1.5px 1.5px at 20% 20%, rgba(243,207,94,0.5) 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 75% 35%, rgba(243,207,94,0.35) 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 40% 70%, rgba(243,207,94,0.4) 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 90% 80%, rgba(243,207,94,0.3) 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 60% 15%, rgba(243,207,94,0.3) 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 10% 90%, rgba(243,207,94,0.35) 50%, transparent 51%);
+    background-size:100% 100%;
+  }
+  .app{max-width:1080px; margin:0 auto; position:relative; z-index:1;}
+
+  /* ---- Banner / title ---- */
+  .banner{
+    text-align:center;
+    margin-bottom:34px;
+    position:relative;
+  }
+  .banner .kicker{
+    display:inline-block;
+    font-size:12px;
+    letter-spacing:0.45em;
+    color:var(--gold);
+    opacity:0.85;
+    margin-bottom:10px;
+    text-indent:0.45em;
+  }
+  .banner h1{
+    font-family:'Shippori Mincho', serif;
+    font-weight:800;
+    font-size:clamp(28px, 5vw, 46px);
+    margin:0;
+    letter-spacing:0.06em;
+    color:var(--paper);
+    text-shadow:0 0 22px rgba(216,179,74,0.35);
+  }
+  .banner .rule{
+    width:120px; height:2px; margin:16px auto 0;
+    background:linear-gradient(90deg, transparent, var(--gold), transparent);
+  }
+
+  /* ---- Cards / panels ---- */
+  .panel{
+    background:linear-gradient(180deg, rgba(28,44,80,0.65), rgba(17,29,56,0.75));
+    border:1px solid rgba(216,179,74,0.25);
+    border-radius:18px;
+    padding:28px clamp(16px,4vw,36px);
+    backdrop-filter:blur(6px);
+    box-shadow:0 20px 50px rgba(0,0,0,0.35);
+  }
+  .panel + .panel{margin-top:24px;}
+
+  .field-row{
+    display:flex; flex-wrap:wrap; gap:20px 28px; align-items:flex-end;
+    margin-bottom:24px;
+  }
+  .field{flex:1 1 260px; min-width:0;}
+  .field label{
+    display:block; font-size:13px; color:var(--gold-bright);
+    letter-spacing:0.08em; margin-bottom:8px; font-weight:700;
+  }
+  .field input[type="text"], .field input[type="number"]{
+    width:100%;
+    background:rgba(10,18,32,0.55);
+    border:1px solid rgba(216,179,74,0.35);
+    border-radius:10px;
+    padding:12px 14px;
+    color:var(--paper);
+    font-size:16px;
+    font-family:inherit;
+    transition:border-color .2s, box-shadow .2s;
+  }
+  .field input::placeholder{color:rgba(247,239,221,0.35);}
+  .field input:focus, .name-grid input:focus, .count-stepper button:focus-visible{
+    outline:none;
+    border-color:var(--gold-bright);
+    box-shadow:0 0 0 3px rgba(243,207,94,0.2);
+  }
+  .count-stepper{
+    display:flex; align-items:center; gap:10px;
+  }
+  .count-stepper button{
+    width:38px; height:38px; border-radius:50%;
+    border:1px solid rgba(216,179,74,0.45);
+    background:rgba(216,179,74,0.08);
+    color:var(--gold-bright);
+    font-size:18px; cursor:pointer;
+    transition:background .15s, transform .1s;
+  }
+  .count-stepper button:hover{background:rgba(216,179,74,0.22);}
+  .count-stepper button:active{transform:scale(0.92);}
+  .count-stepper .count-display{
+    min-width:64px; text-align:center; font-size:20px; font-weight:700; color:var(--paper);
+    font-variant-numeric:tabular-nums;
+  }
+  .count-stepper .count-hint{font-size:12px; color:rgba(247,239,221,0.5); margin-left:6px;}
+
+  .two-col{
+    display:grid; grid-template-columns:1fr 1fr; gap:28px;
+  }
+  @media (max-width:720px){ .two-col{grid-template-columns:1fr;} }
+
+  .col-heading{
+    display:flex; align-items:center; gap:10px;
+    font-family:'Shippori Mincho', serif;
+    font-size:18px; font-weight:700; color:var(--gold-bright);
+    margin-bottom:14px;
+  }
+  .col-heading .dot{width:8px;height:8px;border-radius:50%;background:var(--vermilion);box-shadow:0 0 8px var(--vermilion);}
+
+  .name-grid{
+    display:flex; flex-direction:column; gap:10px;
+    max-height:420px; overflow-y:auto; padding-right:6px;
+  }
+  .name-grid::-webkit-scrollbar{width:6px;}
+  .name-grid::-webkit-scrollbar-thumb{background:rgba(216,179,74,0.35); border-radius:4px;}
+  .name-grid .row{
+    display:flex; align-items:center; gap:10px;
+  }
+  .name-grid .idx{
+    width:26px; text-align:right; font-size:12px; color:rgba(247,239,221,0.45);
+    font-variant-numeric:tabular-nums; flex-shrink:0;
+  }
+  .name-grid input{
+    flex:1; background:rgba(10,18,32,0.5); border:1px solid rgba(216,179,74,0.25);
+    border-radius:8px; padding:9px 12px; color:var(--paper); font-size:14px; font-family:inherit;
+  }
+  .name-grid input::placeholder{color:rgba(247,239,221,0.3);}
+
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    padding:14px 30px;
+    border-radius:999px;
+    border:1px solid var(--gold);
+    background:linear-gradient(180deg, var(--gold-bright), var(--gold));
+    color:#241c07;
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    font-weight:900;
+    font-size:16px;
+    letter-spacing:0.04em;
+    cursor:pointer;
+    box-shadow:0 8px 22px rgba(216,179,74,0.28);
+    transition:transform .12s ease, box-shadow .12s ease;
+  }
+  .btn:hover{transform:translateY(-2px); box-shadow:0 12px 26px rgba(216,179,74,0.38);}
+  .btn:active{transform:translateY(0);}
+  .btn:disabled{opacity:0.45; cursor:not-allowed; transform:none; box-shadow:none;}
+  .btn.ghost{
+    background:transparent; color:var(--gold-bright); border:1px solid rgba(216,179,74,0.5);
+    box-shadow:none; font-weight:700; padding:12px 24px; font-size:14px;
+  }
+  .btn.ghost:hover{background:rgba(216,179,74,0.1);}
+  .btn.small{padding:10px 20px; font-size:13px;}
+
+  .actions{display:flex; justify-content:center; margin-top:28px;}
+  .error-msg{
+    text-align:center; color:#ffb4a3; font-size:13px; margin-top:14px; min-height:16px;
+  }
+
+  /* ---- Ladder screen ---- */
+  #ladderScreen{display:none;}
+  .ladder-toolbar{
+    display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between;
+    gap:14px; margin-bottom:22px;
+  }
+  .ladder-toolbar .left-actions, .ladder-toolbar .right-actions{
+    display:flex; gap:10px; flex-wrap:wrap;
+  }
+  .ladder-title{
+    font-family:'Shippori Mincho', serif; font-size:clamp(20px,3.4vw,30px);
+    font-weight:700; color:var(--paper); text-align:center;
+    margin:0 0 4px;
+  }
+  .ladder-sub{
+    text-align:center; font-size:12px; letter-spacing:0.3em; color:var(--gold);
+    opacity:0.8; margin-bottom:20px; text-indent:0.3em;
+  }
+
+  .ladder-scroll{
+    overflow-x:auto; overflow-y:hidden;
+    padding-bottom:10px;
+    border-radius:14px;
+  }
+  .ladder-scroll::-webkit-scrollbar{height:8px;}
+  .ladder-scroll::-webkit-scrollbar-thumb{background:rgba(216,179,74,0.35); border-radius:4px;}
+
+  svg.ladder{display:block; margin:0 auto;}
+  .tag-name-text, .tag-result-text{
+    font-family:'Zen Kaku Gothic New', sans-serif; font-weight:700; fill:var(--ink);
+  }
+  .name-tag-btn{cursor:pointer;}
+  .name-tag-btn:focus-visible .tag-name-rect{stroke:var(--gold-bright); stroke-width:3;}
+  .name-tag-btn.revealed .tag-name-rect{opacity:0.55;}
+  .name-tag-btn.revealed .tag-name-text{opacity:0.7;}
+  .tag-name-rect{transition:filter .2s, opacity .2s;}
+  .name-tag-btn:hover .tag-name-rect{filter:brightness(1.08);}
+  .result-tag.hit .tag-result-rect{stroke:var(--gold-bright); stroke-width:3;}
+
+  .result-log{
+    margin-top:8px;
+  }
+  .result-log-heading{
+    font-family:'Shippori Mincho', serif; font-size:16px; color:var(--gold-bright);
+    text-align:center; margin-bottom:14px; letter-spacing:0.05em;
+  }
+  .result-list{
+    list-style:none; margin:0 auto; padding:0;
+    max-width:560px;
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .result-list li{
+    display:flex; align-items:center; justify-content:space-between;
+    background:linear-gradient(180deg, rgba(28,44,80,0.7), rgba(17,29,56,0.8));
+    border:1px solid rgba(216,179,74,0.25);
+    border-radius:10px;
+    padding:10px 18px;
+    font-size:14px;
+    opacity:0;
+    transform:translateY(6px);
+    animation:logIn .45s ease forwards;
+  }
+  @keyframes logIn{to{opacity:1; transform:translateY(0);}}
+  .result-list li .name{color:var(--paper); font-weight:700;}
+  .result-list li .arrow{color:var(--gold); margin:0 10px; opacity:0.7;}
+  .result-list li .prize{color:var(--gold-bright); font-weight:900;}
+  .result-list li .empty-hint{color:rgba(247,239,221,0.4); font-size:13px; font-weight:400; text-align:center; width:100%;}
+
+  footer.note{
+    text-align:center; font-size:12px; color:rgba(247,239,221,0.35); margin-top:40px;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    * {animation-duration:.001ms !important; transition-duration:.001ms !important;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="banner">
+    <span class="kicker">GHOST LEG LOTTERY</span>
+    <h1 id="bannerTitle">あみだくじ</h1>
+    <div class="rule"></div>
+  </div>
+
+  <!-- ===================== SETUP SCREEN ===================== -->
+  <div id="setupScreen">
+    <div class="panel">
+      <div class="field-row">
+        <div class="field" style="flex:2 1 320px;">
+          <label for="kujiTitleInput">くじのタイトル</label>
+          <input type="text" id="kujiTitleInput" placeholder="例：新旭ケ丘自治会 役員決め" maxlength="40">
+        </div>
+        <div class="field" style="flex:0 0 auto;">
+          <label>参加人数</label>
+          <div class="count-stepper">
+            <button type="button" id="countMinus" aria-label="人数を減らす">−</button>
+            <span class="count-display" id="countDisplay">5</span>
+            <button type="button" id="countPlus" aria-label="人数を増やす">＋</button>
+            <span class="count-hint">（2〜20人）</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="two-col">
+        <div>
+          <div class="col-heading"><span class="dot"></span>参加者</div>
+          <div class="name-grid" id="participantGrid"></div>
+        </div>
+        <div>
+          <div class="col-heading"><span class="dot" style="background:var(--gold); box-shadow:0 0 8px var(--gold);"></span>当たり（結果）</div>
+          <div class="name-grid" id="resultGrid"></div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="generateBtn">あみだくじを作成する</button>
+      </div>
+      <div class="error-msg" id="errorMsg"></div>
+    </div>
+  </div>
+
+  <!-- ===================== LADDER SCREEN ===================== -->
+  <div id="ladderScreen">
+    <h2 class="ladder-title" id="ladderTitleDisplay"></h2>
+    <div class="ladder-sub">線は隠れています。名前をクリックすると結果までの道が現れます</div>
+
+    <div class="ladder-toolbar">
+      <div class="left-actions">
+        <button class="btn small" id="revealAllBtn">順番にすべて表示</button>
+        <button class="btn ghost small" id="redrawBtn">くじを作り直す</button>
+      </div>
+      <div class="right-actions">
+        <button class="btn ghost small" id="backBtn">設定に戻る</button>
+      </div>
+    </div>
+
+    <div class="ladder-scroll">
+      <svg id="ladderSvg" class="ladder"></svg>
+    </div>
+
+    <div class="result-log">
+      <div class="result-log-heading">結果</div>
+      <ul class="result-list" id="resultList">
+        <li><span class="empty-hint">まだ誰も結果を見ていません</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <footer class="note">クリックの順番はランダムに決まります。何度でも作り直せます。</footer>
+</div>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <filter id="glowFilter" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="3.2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+</svg>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------------------------------------------------
+     State
+  --------------------------------------------------------- */
+  var state = {
+    count: 5,
+    participantNames: [],
+    resultNames: [],
+    title: "",
+    rows: 0,
+    rungs: [],         // rungs[row][gap] = boolean
+    colX: [],           // x coordinate per column
+    topY: 0,
+    bottomY: 0,
+    rowStep: 22,
+    revealedCols: {},   // col -> true once revealed
+    animating: false,
+    queue: []
+  };
+
+  var PALETTE_SAT = 72, PALETTE_LIGHT = 58;
+  function colorForIndex(i){
+    var hue = (i * 137.508) % 360;
+    return "hsl(" + hue.toFixed(1) + ", " + PALETTE_SAT + "%, " + PALETTE_LIGHT + "%)";
+  }
+
+  /* ---------------------------------------------------------
+     Elements
+  --------------------------------------------------------- */
+  var el = {
+    bannerTitle: document.getElementById('bannerTitle'),
+    kujiTitleInput: document.getElementById('kujiTitleInput'),
+    countDisplay: document.getElementById('countDisplay'),
+    countMinus: document.getElementById('countMinus'),
+    countPlus: document.getElementById('countPlus'),
+    participantGrid: document.getElementById('participantGrid'),
+    resultGrid: document.getElementById('resultGrid'),
+    generateBtn: document.getElementById('generateBtn'),
+    errorMsg: document.getElementById('errorMsg'),
+    setupScreen: document.getElementById('setupScreen'),
+    ladderScreen: document.getElementById('ladderScreen'),
+    ladderTitleDisplay: document.getElementById('ladderTitleDisplay'),
+    ladderSvg: document.getElementById('ladderSvg'),
+    revealAllBtn: document.getElementById('revealAllBtn'),
+    redrawBtn: document.getElementById('redrawBtn'),
+    backBtn: document.getElementById('backBtn'),
+    resultList: document.getElementById('resultList')
+  };
+
+  var SVGNS = "http://www.w3.org/2000/svg";
+  function svgEl(tag, attrs){
+    var e = document.createElementNS(SVGNS, tag);
+    if(attrs){ for(var k in attrs){ e.setAttribute(k, attrs[k]); } }
+    return e;
+  }
+
+  /* ---------------------------------------------------------
+     Setup screen: dynamic name inputs
+  --------------------------------------------------------- */
+  function ensureArrayLength(arr, n, defaultFn){
+    while(arr.length < n){ arr.push(defaultFn(arr.length)); }
+    arr.length = n;
+    return arr;
+  }
+
+  function renderNameGrids(){
+    ensureArrayLength(state.participantNames, state.count, function(i){ return ""; });
+    ensureArrayLength(state.resultNames, state.count, function(i){ return ""; });
+
+    el.participantGrid.innerHTML = "";
+    el.resultGrid.innerHTML = "";
+
+    for(var i=0;i<state.count;i++){
+      el.participantGrid.appendChild(makeNameRow(i, state.participantNames[i], "参加者" + (i+1), function(idx, val){
+        state.participantNames[idx] = val;
+      }));
+      el.resultGrid.appendChild(makeNameRow(i, state.resultNames[i], "空白（ハズレ）", function(idx, val){
+        state.resultNames[idx] = val;
+      }));
+    }
+  }
+
+  function makeNameRow(index, value, placeholder, onChange){
+    var row = document.createElement('div');
+    row.className = 'row';
+    var idx = document.createElement('span');
+    idx.className = 'idx';
+    idx.textContent = (index+1) + '.';
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.value = value;
+    input.placeholder = placeholder;
+    input.maxLength = 20;
+    input.addEventListener('input', function(){
+      onChange(index, input.value);
+    });
+    row.appendChild(idx);
+    row.appendChild(input);
+    return row;
+  }
+
+  el.countMinus.addEventListener('click', function(){
+    if(state.count > 2){ state.count--; el.countDisplay.textContent = state.count; renderNameGrids(); }
+  });
+  el.countPlus.addEventListener('click', function(){
+    if(state.count < 20){ state.count++; el.countDisplay.textContent = state.count; renderNameGrids(); }
+  });
+  el.kujiTitleInput.addEventListener('input', function(){
+    state.title = el.kujiTitleInput.value;
+    el.bannerTitle.textContent = state.title.trim() ? state.title : "あみだくじ";
+  });
+
+  renderNameGrids();
+
+  /* ---------------------------------------------------------
+     Ladder generation (ghost-leg algorithm)
+  --------------------------------------------------------- */
+  function generateRungs(n){
+    var rows = Math.max(14, Math.min(32, Math.round(n * 1.8) + 6));
+    var rungs = [];
+    var prevRowSet = {}; // gap indices used in the previous row
+    for(var r=0;r<rows;r++){
+      var rowArr = new Array(Math.max(0,n-1)).fill(false);
+      var lastPlaced = -2;
+      var thisRowSet = {};
+      for(var c=0;c<n-1;c++){
+        // skip if it would touch a column just used earlier in this same row (standard rule),
+        // and skip if the previous row already had a rung at this exact gap - two rungs at the
+        // same spot in consecutive rows just cancel out and look like the path bouncing in place
+        if(c > lastPlaced + 1 && !prevRowSet[c] && Math.random() < 0.38){
+          rowArr[c] = true;
+          lastPlaced = c;
+          thisRowSet[c] = true;
+        }
+      }
+      rungs.push(rowArr);
+      prevRowSet = thisRowSet;
+    }
+    return { rows: rows, rungs: rungs };
+  }
+
+  function tracePath(startCol, rungs, rows, n){
+    var col = startCol;
+    var path = [{row:-1, col:col}]; // -1 marks "before row 0"
+    for(var r=0;r<rows;r++){
+      var rowArr = rungs[r];
+      if(col < n-1 && rowArr[col]){
+        col = col + 1;
+      } else if(col > 0 && rowArr[col-1]){
+        col = col - 1;
+      }
+      path.push({row:r, col:col});
+    }
+    return { endCol: col, steps: path };
+  }
+
+  /* ---------------------------------------------------------
+     Build & render the ladder SVG
+  --------------------------------------------------------- */
+  function measureCharWidth(str){
+    // rough heuristic: count wide (non-ascii) vs narrow chars
+    var w = 0;
+    for(var i=0;i<str.length;i++){
+      var code = str.charCodeAt(i);
+      w += (code > 255) ? 15 : 8.5;
+    }
+    return w;
+  }
+
+  function buildLadder(){
+    var n = state.count;
+    var gen = generateRungs(n);
+    state.rows = gen.rows;
+    state.rungs = gen.rungs;
+    state.revealedCols = {};
+
+    // spacing based on longest label among names/results
+    var maxLabelW = 40;
+    var labelSamples = [];
+    for(var li=0; li<n; li++){ labelSamples.push(participantDisplayName(li)); }
+    labelSamples = labelSamples.concat(state.resultNames);
+    labelSamples.forEach(function(s){
+      maxLabelW = Math.max(maxLabelW, measureCharWidth(s));
+    });
+    var colSpacing = Math.max(58, maxLabelW + 26);
+    var marginX = Math.max(50, maxLabelW/2 + 20);
+
+    var colX = [];
+    for(var i=0;i<n;i++){ colX.push(marginX + i*colSpacing); }
+    state.colX = colX;
+
+    var topY = 92;
+    var rowStep = 20;
+    var bottomY = topY + state.rows * rowStep;
+    state.topY = topY;
+    state.bottomY = bottomY;
+    state.rowStep = rowStep;
+
+    var width = marginX*2 + (n-1)*colSpacing;
+    var height = bottomY + 92;
+
+    var svg = el.ladderSvg;
+    svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+    svg.setAttribute('width', width);
+    svg.setAttribute('height', height);
+    svg.innerHTML = '';
+
+    var gLines = svgEl('g', {id:'gLines'});
+    var gPaths = svgEl('g', {id:'gPaths'});
+    var gTagsTop = svgEl('g', {id:'gTagsTop'});
+    var gTagsBottom = svgEl('g', {id:'gTagsBottom'});
+    var gEffects = svgEl('g', {id:'gEffects'});
+
+    // vertical base lines
+    for(i=0;i<n;i++){
+      gLines.appendChild(svgEl('line', {
+        x1:colX[i], y1:topY, x2:colX[i], y2:bottomY,
+        stroke:'var(--line)', 'stroke-width':2, opacity:0.55
+      }));
+    }
+    // horizontal rungs are intentionally NOT drawn here - like a real amidakuji
+    // folded shut, the connections stay hidden until each person's path is
+    // traced (see animateReveal), which draws just that route on top.
+
+    // top name tags
+    for(i=0;i<n;i++){
+      gTagsTop.appendChild(makeTopTag(i, colX[i], topY));
+    }
+    // bottom result tags
+    for(i=0;i<n;i++){
+      gTagsBottom.appendChild(makeBottomTag(i, colX[i], bottomY));
+    }
+
+    svg.appendChild(gLines);
+    svg.appendChild(gPaths);
+    svg.appendChild(gTagsBottom);
+    svg.appendChild(gTagsTop);
+    svg.appendChild(gEffects);
+
+    state._svgGroups = { gLines:gLines, gPaths:gPaths, gTagsTop:gTagsTop, gTagsBottom:gTagsBottom, gEffects:gEffects };
+  }
+
+  function participantDisplayName(i){
+    var v = (state.participantNames[i] || '').trim();
+    return v ? v : ('参加者' + (i+1));
+  }
+
+  function makeTopTag(i, x, topY){
+    var name = participantDisplayName(i);
+    var w = Math.max(56, measureCharWidth(name) + 26);
+    var h = 34;
+    var g = svgEl('g', {
+      class:'name-tag-btn', 'data-col':i, tabindex:'0', role:'button',
+      'aria-label': name + 'の結果を表示'
+    });
+    var connector = svgEl('line', {x1:x, y1:topY-14, x2:x, y2:topY, stroke:'var(--gold)', 'stroke-width':2, opacity:0.7});
+    var rect = svgEl('rect', {
+      class:'tag-name-rect',
+      x:x-w/2, y:topY-14-h, width:w, height:h, rx:8,
+      fill:'var(--paper)', stroke:colorForIndex(i), 'stroke-width':2.4
+    });
+    var text = svgEl('text', {
+      class:'tag-name-text', x:x, y:topY-14-h/2+5, 'text-anchor':'middle', 'font-size':13
+    });
+    text.textContent = name;
+    g.appendChild(connector);
+    g.appendChild(rect);
+    g.appendChild(text);
+    g.addEventListener('click', function(){ requestReveal(i); });
+    g.addEventListener('keydown', function(ev){ if(ev.key==='Enter' || ev.key===' '){ ev.preventDefault(); requestReveal(i); } });
+    return g;
+  }
+
+  function makeBottomTag(i, x, bottomY){
+    var name = state.resultNames[i];
+    var w = Math.max(56, measureCharWidth(name) + 26);
+    var h = 34;
+    var g = svgEl('g', {class:'result-tag', 'data-col':i});
+    var connector = svgEl('line', {x1:x, y1:bottomY, x2:x, y2:bottomY+14, stroke:'var(--gold)', 'stroke-width':2, opacity:0.7});
+    var rect = svgEl('rect', {
+      class:'tag-result-rect',
+      x:x-w/2, y:bottomY+14, width:w, height:h, rx:8,
+      fill:'var(--paper-dark)', stroke:'var(--gold)', 'stroke-width':2
+    });
+    var text = svgEl('text', {
+      class:'tag-result-text', x:x, y:bottomY+14+h/2+5, 'text-anchor':'middle', 'font-size':13
+    });
+    text.textContent = name;
+    g.appendChild(connector);
+    g.appendChild(rect);
+    g.appendChild(text);
+    return g;
+  }
+
+  /* ---------------------------------------------------------
+     Reveal animation
+  --------------------------------------------------------- */
+  function requestReveal(col){
+    state.queue.push(col);
+    processQueue();
+  }
+
+  function processQueue(){
+    if(state.animating || state.queue.length === 0) return;
+    var col = state.queue.shift();
+    state.animating = true;
+    animateReveal(col, function(){
+      state.animating = false;
+      processQueue();
+    });
+  }
+
+  function pointsForCol(startCol){
+    var trace = tracePath(startCol, state.rungs, state.rows, state.count);
+    var pts = [];
+    pts.push({x: state.colX[startCol], y: state.topY});
+    trace.steps.forEach(function(step){
+      var y = state.topY + (step.row+1) * state.rowStep;
+      pts.push({x: state.colX[step.col], y: y});
+    });
+    pts.push({x: state.colX[trace.endCol], y: state.bottomY});
+    return { points: pts, endCol: trace.endCol };
+  }
+
+  function pathLength(pts){
+    var total = 0;
+    for(var i=1;i<pts.length;i++){
+      total += Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y);
+    }
+    return total;
+  }
+
+  function pointAtDistance(pts, dist){
+    var remaining = dist;
+    for(var i=1;i<pts.length;i++){
+      var segLen = Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y);
+      if(remaining <= segLen || i === pts.length-1){
+        var t = segLen === 0 ? 0 : remaining/segLen;
+        t = Math.max(0, Math.min(1,t));
+        return { x: pts[i-1].x + (pts[i].x-pts[i-1].x)*t, y: pts[i-1].y + (pts[i].y-pts[i-1].y)*t };
+      }
+      remaining -= segLen;
+    }
+    return pts[pts.length-1];
+  }
+
+  function animateReveal(col, onDone){
+    var data = pointsForCol(col);
+    var pts = data.points;
+    var endCol = data.endCol;
+    var color = colorForIndex(col);
+    var d = "M " + pts.map(function(p){return p.x+","+p.y;}).join(" L ");
+
+    var glowPath = svgEl('path', {
+      d:d, fill:'none', stroke:color, 'stroke-width':4,
+      'stroke-linecap':'round', 'stroke-linejoin':'round',
+      filter:'url(#glowFilter)', opacity:0.95
+    });
+    var total = pathLength(pts);
+    glowPath.setAttribute('stroke-dasharray', total);
+    glowPath.setAttribute('stroke-dashoffset', total);
+    state._svgGroups.gPaths.appendChild(glowPath);
+
+    var marker = svgEl('circle', {
+      r:7, fill:color, filter:'url(#glowFilter)'
+    });
+    marker.setAttribute('cx', pts[0].x);
+    marker.setAttribute('cy', pts[0].y);
+    state._svgGroups.gEffects.appendChild(marker);
+
+    var duration = Math.max(900, Math.min(2600, total * 2.6));
+    var startTime = null;
+
+    function frame(ts){
+      if(startTime === null) startTime = ts;
+      var elapsed = ts - startTime;
+      var t = Math.min(1, elapsed/duration);
+      var eased = t<0.5 ? 2*t*t : -1+(4-2*t)*t; // easeInOutQuad
+      var dist = eased * total;
+      glowPath.setAttribute('stroke-dashoffset', total - dist);
+      var p = pointAtDistance(pts, dist);
+      marker.setAttribute('cx', p.x);
+      marker.setAttribute('cy', p.y);
+      if(t < 1){
+        requestAnimationFrame(frame);
+      } else {
+        finishReveal(col, endCol, color, marker);
+        onDone();
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function finishReveal(col, endCol, color, marker){
+    marker.remove();
+    burst(state.colX[endCol], state.bottomY + 14, color);
+
+    // mark top tag as revealed
+    var topTag = state._svgGroups.gTagsTop.querySelector('[data-col="'+col+'"]');
+    if(topTag){ topTag.classList.add('revealed'); }
+
+    // highlight bottom result tag
+    var bottomTag = state._svgGroups.gTagsBottom.querySelector('[data-col="'+endCol+'"]');
+    if(bottomTag){
+      bottomTag.classList.add('hit');
+      var rect = bottomTag.querySelector('.tag-result-rect');
+      if(rect){ rect.setAttribute('stroke', color); rect.setAttribute('fill', 'var(--paper)'); }
+    }
+
+    if(!state.revealedCols[col]){
+      state.revealedCols[col] = true;
+      addResultLogEntry(participantDisplayName(col), state.resultNames[endCol], color);
+    }
+  }
+
+  function burst(x, y, color){
+    var g = svgEl('g');
+    state._svgGroups.gEffects.appendChild(g);
+    var count = 10;
+    for(var i=0;i<count;i++){
+      var angle = (Math.PI*2*i)/count + Math.random()*0.3;
+      var dist = 22 + Math.random()*16;
+      var dx = Math.cos(angle)*dist, dy = Math.sin(angle)*dist;
+      var spark = svgEl('circle', {cx:x, cy:y, r:3, fill: (i%2===0? color : 'var(--gold-bright)')});
+      g.appendChild(spark);
+      animateSpark(spark, x, y, x+dx, y+dy);
+    }
+    setTimeout(function(){ g.remove(); }, 700);
+  }
+
+  function animateSpark(node, x0, y0, x1, y1){
+    var start = null, duration = 620;
+    function frame(ts){
+      if(start===null) start = ts;
+      var t = Math.min(1, (ts-start)/duration);
+      var ease = 1 - Math.pow(1-t, 2);
+      node.setAttribute('cx', x0 + (x1-x0)*ease);
+      node.setAttribute('cy', y0 + (y1-y0)*ease);
+      node.setAttribute('opacity', 1-t);
+      node.setAttribute('r', 3 - 2*t);
+      if(t<1) requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function addResultLogEntry(name, prize, color){
+    if(el.resultList.querySelector('.empty-hint')){ el.resultList.innerHTML = ''; }
+    var li = document.createElement('li');
+    li.style.borderColor = color;
+    var nameSpan = document.createElement('span');
+    nameSpan.className = 'name';
+    nameSpan.textContent = name;
+    var arrow = document.createElement('span');
+    arrow.className = 'arrow';
+    arrow.textContent = '→';
+    var prizeSpan = document.createElement('span');
+    prizeSpan.className = 'prize';
+    var prizeTrimmed = (prize || '').trim();
+    if(prizeTrimmed){
+      prizeSpan.textContent = prizeTrimmed;
+    } else {
+      prizeSpan.textContent = 'ハズレ';
+      prizeSpan.style.opacity = '0.45';
+      prizeSpan.style.fontWeight = '400';
+    }
+    var left = document.createElement('span');
+    left.appendChild(nameSpan);
+    left.appendChild(arrow);
+    li.appendChild(left);
+    li.appendChild(prizeSpan);
+    el.resultList.appendChild(li);
+  }
+
+  function resetResultLog(){
+    el.resultList.innerHTML = '<li><span class="empty-hint">まだ誰も結果を見ていません</span></li>';
+  }
+
+  /* ---------------------------------------------------------
+     Screen switching / controls
+  --------------------------------------------------------- */
+  function showLadderScreen(){
+    el.setupScreen.style.display = 'none';
+    el.ladderScreen.style.display = 'block';
+    var title = state.title.trim() ? state.title.trim() : "あみだくじ";
+    el.ladderTitleDisplay.textContent = title;
+    el.bannerTitle.textContent = title;
+  }
+
+  function showSetupScreen(){
+    el.ladderScreen.style.display = 'none';
+    el.setupScreen.style.display = 'block';
+  }
+
+  el.generateBtn.addEventListener('click', function(){
+    el.errorMsg.textContent = '';
+    state.queue = [];
+    state.animating = false;
+    buildLadder();
+    resetResultLog();
+    showLadderScreen();
+  });
+
+  el.backBtn.addEventListener('click', function(){
+    showSetupScreen();
+  });
+
+  el.redrawBtn.addEventListener('click', function(){
+    state.queue = [];
+    state.animating = false;
+    buildLadder();
+    resetResultLog();
+  });
+
+  el.revealAllBtn.addEventListener('click', function(){
+    var order = [];
+    for(var i=0;i<state.count;i++){ if(!state.revealedCols[i]) order.push(i); }
+    // shuffle order for a bit of suspense
+    for(i=order.length-1;i>0;i--){
+      var j = Math.floor(Math.random()*(i+1));
+      var tmp = order[i]; order[i]=order[j]; order[j]=tmp;
+    }
+    order.forEach(function(col){ requestReveal(col); });
+  });
+
+})();
+</script>
+</body>
+</html>
