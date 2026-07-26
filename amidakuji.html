@@ -564,21 +564,6 @@
     return { rows: rows, rungs: rungs };
   }
 
-  function tracePath(startCol, rungs, rows, n){
-    var col = startCol;
-    var path = [{row:-1, col:col}]; // -1 marks "before row 0"
-    for(var r=0;r<rows;r++){
-      var rowArr = rungs[r];
-      if(col < n-1 && rowArr[col]){
-        col = col + 1;
-      } else if(col > 0 && rowArr[col-1]){
-        col = col - 1;
-      }
-      path.push({row:r, col:col});
-    }
-    return { endCol: col, steps: path };
-  }
-
   /* ---------------------------------------------------------
      Build & render the ladder SVG
   --------------------------------------------------------- */
@@ -736,15 +721,32 @@
   }
 
   function pointsForCol(startCol){
-    var trace = tracePath(startCol, state.rungs, state.rows, state.count);
-    var pts = [];
-    pts.push({x: state.colX[startCol], y: state.topY});
-    trace.steps.forEach(function(step){
-      var y = state.topY + (step.row+1) * state.rowStep;
-      pts.push({x: state.colX[step.col], y: y});
-    });
-    pts.push({x: state.colX[trace.endCol], y: state.bottomY});
-    return { points: pts, endCol: trace.endCol };
+    var n = state.count, rows = state.rows, rungs = state.rungs;
+    var topY = state.topY, rowStep = state.rowStep, colX = state.colX;
+    var col = startCol;
+    var pts = [{x: colX[col], y: topY}];
+
+    for(var r=0;r<rows;r++){
+      var rowArr = rungs[r];
+      var yMid = topY + r*rowStep + rowStep/2;
+      // vertical run down to this row's rung height
+      pts.push({x: colX[col], y: yMid});
+      var newCol = col;
+      if(col < n-1 && rowArr[col]){
+        newCol = col + 1;
+      } else if(col > 0 && rowArr[col-1]){
+        newCol = col - 1;
+      }
+      if(newCol !== col){
+        // horizontal jog across the rung, then continue down from the new column
+        pts.push({x: colX[newCol], y: yMid});
+        col = newCol;
+      }
+    }
+    // final vertical run down to the bottom
+    pts.push({x: colX[col], y: state.bottomY});
+
+    return { points: pts, endCol: col };
   }
 
   // Suspense pacing: steady motion for the first ~78% of the time, then a
@@ -877,8 +879,8 @@
     }
 
     if(!state.revealedCols[col]){
-      state.revealedCols[col] = true;
-      addResultLogEntry(participantDisplayName(col), state.resultNames[endCol], color);
+      state.revealedCols[col] = { name: participantDisplayName(col), prize: state.resultNames[endCol], color: color };
+      renderResultLog(col);
     }
   }
 
@@ -912,32 +914,42 @@
     requestAnimationFrame(frame);
   }
 
-  function addResultLogEntry(name, prize, color){
-    if(el.resultList.querySelector('.empty-hint')){ el.resultList.innerHTML = ''; }
-    var li = document.createElement('li');
-    li.style.borderColor = color;
-    var nameSpan = document.createElement('span');
-    nameSpan.className = 'name';
-    nameSpan.textContent = name;
-    var arrow = document.createElement('span');
-    arrow.className = 'arrow';
-    arrow.textContent = '→';
-    var prizeSpan = document.createElement('span');
-    prizeSpan.className = 'prize';
-    var prizeTrimmed = (prize || '').trim();
-    if(prizeTrimmed){
-      prizeSpan.textContent = prizeTrimmed;
-    } else {
-      prizeSpan.textContent = 'ハズレ';
-      prizeSpan.style.opacity = '0.45';
-      prizeSpan.style.fontWeight = '400';
+  function renderResultLog(justRevealedCol){
+    el.resultList.innerHTML = '';
+    var any = false;
+    for(var col=0; col<state.count; col++){
+      var entry = state.revealedCols[col];
+      if(!entry) continue;
+      any = true;
+      var li = document.createElement('li');
+      li.style.borderColor = entry.color;
+      if(col !== justRevealedCol){ li.style.animation = 'none'; li.style.opacity = '1'; li.style.transform = 'none'; }
+      var nameSpan = document.createElement('span');
+      nameSpan.className = 'name';
+      nameSpan.textContent = entry.name;
+      var arrow = document.createElement('span');
+      arrow.className = 'arrow';
+      arrow.textContent = '→';
+      var prizeSpan = document.createElement('span');
+      prizeSpan.className = 'prize';
+      var prizeTrimmed = (entry.prize || '').trim();
+      if(prizeTrimmed){
+        prizeSpan.textContent = prizeTrimmed;
+      } else {
+        prizeSpan.textContent = 'ハズレ';
+        prizeSpan.style.opacity = '0.45';
+        prizeSpan.style.fontWeight = '400';
+      }
+      var left = document.createElement('span');
+      left.appendChild(nameSpan);
+      left.appendChild(arrow);
+      li.appendChild(left);
+      li.appendChild(prizeSpan);
+      el.resultList.appendChild(li);
     }
-    var left = document.createElement('span');
-    left.appendChild(nameSpan);
-    left.appendChild(arrow);
-    li.appendChild(left);
-    li.appendChild(prizeSpan);
-    el.resultList.appendChild(li);
+    if(!any){
+      el.resultList.innerHTML = '<li><span class="empty-hint">まだ誰も結果を見ていません</span></li>';
+    }
   }
 
   function resetResultLog(){
@@ -988,14 +1000,9 @@
   });
 
   el.revealAllBtn.addEventListener('click', function(){
-    var order = [];
-    for(var i=0;i<state.count;i++){ if(!state.revealedCols[i]) order.push(i); }
-    // shuffle order for a bit of suspense
-    for(i=order.length-1;i>0;i--){
-      var j = Math.floor(Math.random()*(i+1));
-      var tmp = order[i]; order[i]=order[j]; order[j]=tmp;
+    for(var i=0;i<state.count;i++){
+      if(!state.revealedCols[i]) requestReveal(i);
     }
-    order.forEach(function(col){ requestReveal(col); });
   });
 
 })();
