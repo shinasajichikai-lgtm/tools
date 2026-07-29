@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ビンゴ抽選機</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap');
+
+  :root{
+    --bg-navy:#15132f;
+    --bg-navy-deep:#0a0920;
+    --gold:#f5c451;
+    --cream:#faf3e3;
+    --col-b:#2f6fed;
+    --col-i:#f2994a;
+    --col-n:#27ae60;
+    --col-g:#eb5757;
+    --col-o:#9b51e0;
+  }
+  *{ box-sizing:border-box; }
+  html,body{
+    margin:0; padding:0; min-height:100%;
+    background:radial-gradient(ellipse at 50% -10%, #2c2760 0%, var(--bg-navy) 40%, var(--bg-navy-deep) 85%);
+    color:var(--cream);
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    overflow-x:hidden;
+  }
+  .bg-confetti{
+    position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.5;
+    background-image:
+      radial-gradient(circle, var(--col-b) 2px, transparent 2.5px),
+      radial-gradient(circle, var(--col-i) 2px, transparent 2.5px),
+      radial-gradient(circle, var(--col-g) 2px, transparent 2.5px),
+      radial-gradient(circle, var(--gold) 2px, transparent 2.5px);
+    background-size:140px 140px, 160px 160px, 120px 120px, 180px 180px;
+    background-position:0 0, 40px 60px, 90px 20px, 60px 100px;
+  }
+  .stage{ position:relative; z-index:1; max-width:560px; margin:0 auto; padding:24px 14px 60px; display:flex; flex-direction:column; align-items:center;}
+
+  h1.title{
+    font-family:'Fredoka', sans-serif; font-weight:700;
+    font-size:clamp(22px,6vw,30px); letter-spacing:.02em; text-align:center; margin:0 0 4px;
+    background:linear-gradient(90deg, var(--col-b), var(--col-i), var(--col-n), var(--col-g), var(--col-o));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    text-shadow:0 2px 14px rgba(245,196,81,.25);
+  }
+  .subtitle{ font-size:12px; letter-spacing:.3em; color:#b6adde; margin-bottom:16px; }
+
+  /* size selector */
+  .size-select{ display:flex; align-items:center; gap:10px; margin-bottom:18px; background:rgba(255,255,255,.06); padding:8px 14px; border-radius:14px; }
+  .size-label{ font-size:12px; color:#c9c2ea; }
+  .size-btn{
+    font-family:'Fredoka',sans-serif; font-weight:700; font-size:14px;
+    width:38px; height:38px; border-radius:10px; border:none; cursor:pointer;
+    background:transparent; color:#c9c2ea;
+  }
+  .size-btn.active{ background:var(--gold); color:#3a2a06; box-shadow:0 3px 8px rgba(0,0,0,.35); }
+
+  .cage-wrap{ position:relative; width:150px; height:150px; margin-bottom:8px; }
+  .cage-ring{
+    position:absolute; inset:0; border-radius:50%;
+    border:3px solid rgba(245,196,81,.55);
+    background:
+      repeating-linear-gradient(0deg, transparent 0 12px, rgba(245,196,81,.18) 12px 13px),
+      repeating-linear-gradient(90deg, transparent 0 12px, rgba(245,196,81,.18) 12px 13px);
+    animation:cageSpin 9s linear infinite;
+    overflow:hidden;
+  }
+  .cage-ring.shake{ animation:cageShake .6s ease; }
+  @keyframes cageSpin{ from{ transform:rotate(0deg);} to{ transform:rotate(360deg);} }
+  @keyframes cageShake{
+    0%,100%{ transform:rotate(0deg) scale(1); }
+    20%{ transform:rotate(-14deg) scale(1.04); }
+    40%{ transform:rotate(12deg) scale(1.06); }
+    60%{ transform:rotate(-10deg) scale(1.04); }
+    80%{ transform:rotate(8deg) scale(1.02); }
+  }
+  .ball{ position:absolute; width:16px; height:16px; border-radius:50%; box-shadow:inset -2px -2px 3px rgba(0,0,0,.35), inset 2px 2px 3px rgba(255,255,255,.4); }
+  .b1{ background:var(--col-b); top:20px; left:30px; animation:bob1 2.3s ease-in-out infinite; }
+  .b2{ background:var(--col-i); top:60px; left:15px; animation:bob2 1.9s ease-in-out infinite; }
+  .b3{ background:var(--col-n); top:90px; left:55px; animation:bob3 2.6s ease-in-out infinite; }
+  .b4{ background:var(--col-g); top:30px; left:90px; animation:bob1 2.1s ease-in-out infinite .3s; }
+  .b5{ background:var(--col-o); top:75px; left:100px; animation:bob2 2.4s ease-in-out infinite .5s; }
+  .b6{ background:var(--col-b); top:105px; left:20px; animation:bob3 2s ease-in-out infinite .2s; }
+  .b7{ background:var(--col-g); top:15px; left:65px; animation:bob2 2.2s ease-in-out infinite .6s; }
+  .b8{ background:var(--col-o); top:50px; left:75px; animation:bob1 1.8s ease-in-out infinite .4s; }
+  @keyframes bob1{ 0%,100%{ transform:translate(0,0);} 50%{ transform:translate(8px,-10px);} }
+  @keyframes bob2{ 0%,100%{ transform:translate(0,0);} 50%{ transform:translate(-9px,7px);} }
+  @keyframes bob3{ 0%,100%{ transform:translate(0,0);} 50%{ transform:translate(6px,9px);} }
+
+  .eject-ball{ position:fixed; width:16px; height:16px; border-radius:50%; z-index:60; pointer-events:none; box-shadow:0 4px 10px rgba(0,0,0,.5); }
+
+  .call-display{
+    display:flex; align-items:center; gap:14px; margin:6px 0 14px;
+    background:rgba(255,255,255,.06); border-radius:20px; padding:10px 26px;
+    border:2px solid rgba(245,196,81,.3);
+  }
+  .call-letter, .call-number{ font-family:'Fredoka', sans-serif; font-weight:700; line-height:1; }
+  .call-letter{ font-size:40px; width:46px; text-align:center; color:var(--gold); }
+  .call-number{ font-size:52px; color:var(--cream); min-width:70px; text-align:center; }
+  .call-pop{ animation:callPop .45s cubic-bezier(.3,1.6,.5,1); }
+  @keyframes callPop{
+    0%{ transform:scale(.4) rotate(-8deg); opacity:0; }
+    60%{ transform:scale(1.15) rotate(3deg); opacity:1; }
+    100%{ transform:scale(1) rotate(0); }
+  }
+
+  .progress-wrap{ width:100%; max-width:420px; margin-bottom:14px; }
+  .progress-bar{ height:10px; border-radius:6px; background:rgba(255,255,255,.1); overflow:hidden; }
+  .progress-fill{ height:100%; width:0%; border-radius:6px; background:linear-gradient(90deg, var(--col-b), var(--col-n), var(--gold)); transition:width .5s ease; }
+  .progress-text{ font-size:12px; color:#c9c2ea; text-align:center; margin-top:6px; letter-spacing:.05em; }
+
+  .controls-row{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; justify-content:center; margin-bottom:14px; }
+  .draw-btn{
+    font-family:'Fredoka', sans-serif; font-weight:700; font-size:17px;
+    background:linear-gradient(180deg, #ffd876, var(--gold));
+    color:#3a2a06; border:none; border-radius:16px; padding:14px 34px;
+    cursor:pointer; box-shadow:0 5px 0 #b98a1f, 0 8px 16px rgba(0,0,0,.4);
+    transition:transform .08s;
+  }
+  .draw-btn:active{ transform:translateY(4px); box-shadow:0 1px 0 #b98a1f; }
+  .draw-btn:disabled{ filter:grayscale(.5) brightness(.75); cursor:not-allowed; box-shadow:0 5px 0 #555; }
+  .reset-btn{
+    font-family:'Zen Kaku Gothic New', sans-serif; font-weight:700; font-size:13px;
+    background:rgba(255,255,255,.08); color:#e7e2ff; border:1.5px solid rgba(255,255,255,.25);
+    border-radius:12px; padding:11px 16px; cursor:pointer;
+  }
+  .reset-btn:hover{ background:rgba(255,255,255,.16); }
+  .voice-toggle{ font-size:12px; color:#c9c2ea; display:flex; align-items:center; gap:6px; cursor:pointer; }
+
+  .banner-zone{ height:30px; }
+  .banner{
+    font-family:'Fredoka', sans-serif; font-weight:700; font-size:18px; color:var(--gold);
+    text-shadow:0 0 14px rgba(245,196,81,.6); opacity:0; letter-spacing:.05em;
+  }
+  .banner.show{ animation:bannerPop 2.2s ease forwards; }
+  @keyframes bannerPop{
+    0%{ opacity:0; transform:translateY(6px) scale(.85);}
+    15%{ opacity:1; transform:translateY(0) scale(1.05);}
+    25%{ transform:scale(1);}
+    80%{ opacity:1;}
+    100%{ opacity:0;}
+  }
+
+  .history-strip{ display:flex; gap:6px; overflow-x:auto; width:100%; max-width:520px; padding:6px 4px 12px; scrollbar-width:thin; }
+  .history-chip{
+    flex:0 0 auto; width:34px; height:34px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:12px; font-weight:800; color:#fff; font-family:'Fredoka', sans-serif;
+    animation:chipIn .3s ease;
+  }
+  @keyframes chipIn{ from{ transform:scale(0);} to{ transform:scale(1);} }
+
+  .board{ width:100%; max-width:520px; background:rgba(255,255,255,.04); border-radius:16px; padding:10px; border:1px solid rgba(255,255,255,.08); }
+  .board-header, .board-rows{ display:grid; gap:4px; }
+  .board-header div{
+    text-align:center; font-family:'Fredoka',sans-serif; font-weight:700; font-size:15px;
+    padding:4px 0; border-radius:6px; color:#fff;
+  }
+  .board-cell{
+    aspect-ratio:1/1; display:flex; align-items:center; justify-content:center;
+    font-size:11px; font-weight:700; border-radius:6px;
+    background:rgba(255,255,255,.05); color:#8f88b8;
+    transition:background .25s, color .25s, transform .25s;
+  }
+  .board-cell.called{ color:#fff; transform:scale(1.03); animation:cellPop .35s ease; }
+  @keyframes cellPop{ 0%{ transform:scale(.5);} 60%{ transform:scale(1.15);} 100%{ transform:scale(1.03);} }
+
+  @media (max-width:400px){
+    .call-number{ font-size:42px; }
+    .call-letter{ font-size:32px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-confetti"></div>
+
+<div class="stage">
+  <h1 class="title">ビンゴ抽選機</h1>
+  <div class="subtitle">NUMBER CALLER</div>
+
+  <div class="size-select">
+    <span class="size-label">列数</span>
+    <button class="size-btn" data-size="3">3</button>
+    <button class="size-btn active" data-size="4">4</button>
+    <button class="size-btn" data-size="5">5</button>
+  </div>
+
+  <div class="cage-wrap">
+    <div class="cage-ring" id="cageRing">
+      <div class="ball b1"></div><div class="ball b2"></div><div class="ball b3"></div><div class="ball b4"></div>
+      <div class="ball b5"></div><div class="ball b6"></div><div class="ball b7"></div><div class="ball b8"></div>
+    </div>
+  </div>
+
+  <div class="call-display">
+    <div class="call-letter" id="callLetter">-</div>
+    <div class="call-number" id="callNumber">--</div>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-text" id="progressText"></div>
+  </div>
+
+  <div class="controls-row">
+    <button class="draw-btn" id="drawBtn">抽選する</button>
+    <button class="reset-btn" id="resetBtn">リセット</button>
+    <label class="voice-toggle"><input type="checkbox" id="voiceToggle" checked> 読み上げ</label>
+  </div>
+
+  <div class="banner-zone"><div class="banner" id="banner"></div></div>
+
+  <div class="history-strip" id="historyStrip"></div>
+
+  <div class="board">
+    <div class="board-header" id="boardHeader"></div>
+    <div class="board-rows" id="boardRows"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const ALL_LETTERS = ['B','I','N','G','O'];
+  const COLORS = { B:'#2f6fed', I:'#f2994a', N:'#27ae60', G:'#eb5757', O:'#9b51e0' };
+  const READING = { B:'ビー', I:'アイ', N:'エヌ', G:'ジー', O:'オー' };
+  const PER_COL = 15; // each column draws from a range of 15 numbers, regardless of grid size
+
+  let SIZE = 4;
+  let LETTERS = ALL_LETTERS.slice(0, SIZE);
+  let TOTAL = SIZE * PER_COL;
+
+  function letterForNumber(n){
+    const idx = Math.floor((n-1)/PER_COL);
+    return LETTERS[idx];
+  }
+
+  // ---------------- Audio ----------------
+  let actx=null;
+  function ctx(){ if(!actx) actx = new (window.AudioContext||window.webkitAudioContext)(); return actx; }
+  function tone(freq, start, dur, type='sine', gain=0.16){
+    const ac = ctx();
+    const osc = ac.createOscillator(), g = ac.createGain();
+    osc.type=type; osc.frequency.value=freq;
+    osc.connect(g); g.connect(ac.destination);
+    const t0 = ac.currentTime+start;
+    g.gain.setValueAtTime(0,t0);
+    g.gain.linearRampToValueAtTime(gain,t0+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,t0+dur);
+    osc.start(t0); osc.stop(t0+dur+0.02);
+  }
+  function playPop(){ tone(500,0,0.12,'triangle',0.15); tone(720,0.04,0.1,'triangle',0.1); }
+  function playComplete(){ [392,494,587,784].forEach((f,i)=> tone(f,i*0.15,0.5,'sine',0.15)); }
+
+  function speak(letter, number){
+    if(!document.getElementById('voiceToggle').checked) return;
+    if(!('speechSynthesis' in window)) return;
+    try{
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(`${READING[letter]}、${number}`);
+      u.lang = 'ja-JP'; u.rate = 1;
+      window.speechSynthesis.speak(u);
+    }catch(e){}
+  }
+
+  // ---------------- DOM refs ----------------
+  const drawBtn = document.getElementById('drawBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const callLetter = document.getElementById('callLetter');
+  const callNumber = document.getElementById('callNumber');
+  const progressFill = document.getElementById('progressFill');
+  const progressText = document.getElementById('progressText');
+  const bannerEl = document.getElementById('banner');
+  const historyStrip = document.getElementById('historyStrip');
+  const cageRing = document.getElementById('cageRing');
+  const cageWrap = document.querySelector('.cage-wrap');
+  const boardHeader = document.getElementById('boardHeader');
+  const boardRows = document.getElementById('boardRows');
+
+  let calledNumbers = [];
+  let pool = [];
+  let boardCells = {};
+
+  function showBanner(text){
+    bannerEl.classList.remove('show');
+    void bannerEl.offsetWidth;
+    bannerEl.textContent = text;
+    bannerEl.classList.add('show');
+  }
+
+  function buildBoard(){
+    boardHeader.innerHTML = '';
+    boardRows.innerHTML = '';
+    boardHeader.style.gridTemplateColumns = `repeat(${SIZE},1fr)`;
+    boardRows.style.gridTemplateColumns = `repeat(${SIZE},1fr)`;
+    LETTERS.forEach(L=>{
+      const d = document.createElement('div');
+      d.textContent = L; d.style.background = COLORS[L];
+      boardHeader.appendChild(d);
+    });
+    boardCells = {};
+    for(let row=0; row<PER_COL; row++){
+      for(let col=0; col<SIZE; col++){
+        const num = col*PER_COL+row+1;
+        const cell = document.createElement('div');
+        cell.className = 'board-cell';
+        cell.textContent = num;
+        boardRows.appendChild(cell);
+        boardCells[num] = cell;
+      }
+    }
+  }
+
+  function resetState(){
+    pool = Array.from({length:TOTAL}, (_,i)=>i+1);
+    calledNumbers = [];
+    callLetter.textContent='-'; callLetter.style.color='';
+    callNumber.textContent='--';
+    historyStrip.innerHTML='';
+    drawBtn.disabled = false;
+    updateProgress();
+    buildBoard();
+  }
+
+  function updateProgress(){
+    const n = calledNumbers.length;
+    progressFill.style.width = (n/TOTAL*100)+'%';
+    progressText.textContent = `${n} / ${TOTAL} 抽選済み（残り ${TOTAL-n}）`;
+  }
+
+  function addHistoryChip(letter, number){
+    const chip = document.createElement('div');
+    chip.className = 'history-chip';
+    chip.style.background = COLORS[letter];
+    chip.textContent = letter+number;
+    historyStrip.insertBefore(chip, historyStrip.firstChild);
+  }
+
+  function ejectBall(letter){
+    return new Promise(resolve=>{
+      const startRect = cageWrap.getBoundingClientRect();
+      const endEl = document.querySelector('.call-display');
+      const endRect = endEl.getBoundingClientRect();
+
+      const ball = document.createElement('div');
+      ball.className = 'eject-ball';
+      ball.style.background = COLORS[letter];
+      ball.style.left = (startRect.left+startRect.width/2-8)+'px';
+      ball.style.top = (startRect.top+startRect.height/2-8)+'px';
+      document.body.appendChild(ball);
+
+      const dx = (endRect.left+endRect.width/2) - (startRect.left+startRect.width/2);
+      const dy = (endRect.top+endRect.height/2) - (startRect.top+startRect.height/2);
+
+      const anim = ball.animate([
+        { transform:'translate(0,0) scale(1)', opacity:1 },
+        { transform:`translate(${dx*0.5}px, ${dy*0.5-40}px) scale(1.3)`, opacity:1, offset:0.55 },
+        { transform:`translate(${dx}px, ${dy}px) scale(.6)`, opacity:0 }
+      ], { duration:620, easing:'cubic-bezier(.25,.6,.3,1)' });
+
+      anim.onfinish = ()=>{ ball.remove(); resolve(); };
+    });
+  }
+
+  async function drawNumber(){
+    if(drawBtn.disabled) return;
+    if(pool.length===0){
+      showBanner(`全${TOTAL}個の抽選が終了しました！`);
+      return;
+    }
+    drawBtn.disabled = true;
+
+    cageRing.classList.remove('shake'); void cageRing.offsetWidth; cageRing.classList.add('shake');
+    await new Promise(r=>setTimeout(r, 550));
+
+    const idx = Math.floor(Math.random()*pool.length);
+    const number = pool.splice(idx,1)[0];
+    const letter = letterForNumber(number);
+
+    await ejectBall(letter);
+
+    calledNumbers.push(number);
+
+    callLetter.textContent = letter;
+    callLetter.style.color = COLORS[letter];
+    callNumber.textContent = number;
+    callLetter.classList.remove('call-pop'); void callLetter.offsetWidth; callLetter.classList.add('call-pop');
+    callNumber.classList.remove('call-pop'); void callNumber.offsetWidth; callNumber.classList.add('call-pop');
+
+    const bc = boardCells[number];
+    bc.style.background = COLORS[letter];
+    bc.classList.add('called');
+
+    addHistoryChip(letter, number);
+    updateProgress();
+    speak(letter, number);
+    playPop();
+
+    if(pool.length===0){
+      showBanner(`全${TOTAL}個の抽選が終了しました！お疲れさまでした`);
+      playComplete();
+    }
+
+    drawBtn.disabled = false;
+  }
+
+  function doReset(){
+    if(calledNumbers.length>0 && !confirm('抽選結果をリセットします。よろしいですか？')) return;
+    resetState();
+  }
+
+  function setSize(newSize){
+    if(newSize===SIZE) return;
+    if(calledNumbers.length>0 && !confirm('列数を変更すると抽選結果はリセットされます。よろしいですか？')) return;
+    SIZE = newSize;
+    LETTERS = ALL_LETTERS.slice(0, SIZE);
+    TOTAL = SIZE * PER_COL;
+    document.querySelectorAll('.size-btn').forEach(b=> b.classList.toggle('active', Number(b.dataset.size)===SIZE));
+    resetState();
+  }
+
+  document.querySelectorAll('.size-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> setSize(Number(btn.dataset.size)));
+  });
+
+  drawBtn.addEventListener('click', drawNumber);
+  resetBtn.addEventListener('click', doReset);
+
+  resetState();
+})();
+</script>
+</body>
+</html>
