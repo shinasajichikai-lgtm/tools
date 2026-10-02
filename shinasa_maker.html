@@ -388,6 +388,19 @@
       <label>本文（1行＝1項目。行頭に「・」は自動で付きません。必要なら「・」を入力してください）</label>
       <textarea id="noticeBody" rows="8" placeholder="・先日、市内で発生した大雨により被災された皆様に心よりお見舞い申し上げます。&#10;・住宅地内では、徐行運転をお願い致します。"></textarea>
     </div>
+    <div class="checkline">
+      <input type="checkbox" id="noticeAutoFit" checked>
+      <label for="noticeAutoFit" style="margin:0;">自動調整で1ページに収める（文字サイズ・行間を自動縮小）</label>
+    </div>
+    <div class="field">
+      <label>文字サイズ：<span id="noticeFontLabel">10.0pt</span></label>
+      <input type="range" id="noticeFontSlider" min="6.5" max="11" step="0.1" value="10">
+    </div>
+    <div class="field">
+      <label>行間：<span id="noticeLineLabel">1.90</span></label>
+      <input type="range" id="noticeLineSlider" min="1.2" max="2.2" step="0.05" value="1.9">
+    </div>
+    <div id="pageFitStatus" style="font-size:12px; margin:4px 0 8px;"></div>
 
     <h2>ポータルサイト バナー</h2>
     <div class="checkline">
@@ -653,6 +666,125 @@ function buildCalendarTable(year, month, events){
 /* ---------- 日付セル内の文字サイズを自動調整 ----------
    まず基準の枠の高さに収まるよう文字を段階的に縮小し、
    それでも収まらない場合のみ枠（行の高さ）がわずかに伸びるのを許容する。 */
+/* ---------- 連絡事項：自動調整で1ページに収める ----------
+   行間を先に縮め、それでも収まらない場合に文字サイズを縮める。
+   A4の高さ(297mm)を超える分だけ段階的に縮小する。 */
+const PAGE_HEIGHT_MM = 297;
+const NOTICE_MAX_FONT_PT = 11.0;
+const NOTICE_MIN_FONT_PT = 6.5;
+const NOTICE_MAX_LINE = 2.2;
+const NOTICE_MIN_LINE = 1.2;
+
+function fitNoticeToPage(){
+  const page = document.getElementById('page');
+  const noticeBody = document.getElementById('p_noticebody');
+  const targetPx = PAGE_HEIGHT_MM * MM_TO_PX;
+
+  if(!noticeBody.textContent.trim()){
+    noticeBody.style.fontSize = NOTICE_MAX_FONT_PT + 'pt';
+    noticeBody.style.lineHeight = NOTICE_MAX_LINE;
+    return {fontSize: NOTICE_MAX_FONT_PT, lineHeight: NOTICE_MAX_LINE};
+  }
+
+  // まず連絡事項を最大サイズにして、ページ全体のうち「連絡事項欄以外」が
+  // 占めている高さ（ヘッダー・カレンダー・バナーなど）を求める。
+  // この高さは連絡事項の文字サイズを変えても変化しないため、
+  // 連絡事項に割り当てられる実際の余白だけを基準に縮小するかどうかを判断する。
+  noticeBody.style.fontSize = NOTICE_MAX_FONT_PT + 'pt';
+  noticeBody.style.lineHeight = NOTICE_MAX_LINE;
+  const totalAtMax = page.offsetHeight;
+  const noticeAtMax = noticeBody.offsetHeight;
+  const fixedHeight = totalAtMax - noticeAtMax;
+  const availableForNotice = targetPx - fixedHeight;
+
+  let fontSize = NOTICE_MAX_FONT_PT;
+  let lineHeight = NOTICE_MAX_LINE;
+
+  // 最大サイズのまま連絡事項欄に収まる場合（＝今回のケース）は縮小しない。
+  // また、連絡事項以外の要素だけで既に1ページを超えている場合は、
+  // 連絡事項をいくら縮めても解決しないため、ここでも縮小しない
+  // （その場合はページ全体の判定で警告を表示する）。
+  if(availableForNotice > 0 && noticeAtMax > availableForNotice){
+    let guard = 0;
+    while(noticeBody.offsetHeight > availableForNotice && guard < 300){
+      guard++;
+      if(lineHeight > NOTICE_MIN_LINE){
+        lineHeight = Math.max(NOTICE_MIN_LINE, lineHeight - 0.05);
+      } else if(fontSize > NOTICE_MIN_FONT_PT){
+        fontSize = Math.max(NOTICE_MIN_FONT_PT, fontSize - 0.2);
+      } else {
+        break; // これ以上縮小できない場合は、枠が1ページを超えるのを許容する
+      }
+      noticeBody.style.fontSize = fontSize.toFixed(2) + 'pt';
+      noticeBody.style.lineHeight = lineHeight.toFixed(2);
+    }
+  }
+  return {fontSize, lineHeight};
+}
+
+function applyManualNoticeSize(){
+  const noticeBody = document.getElementById('p_noticebody');
+  const fontSize = parseFloat(document.getElementById('noticeFontSlider').value);
+  const lineHeight = parseFloat(document.getElementById('noticeLineSlider').value);
+  noticeBody.style.fontSize = fontSize + 'pt';
+  noticeBody.style.lineHeight = lineHeight;
+  return {fontSize, lineHeight};
+}
+
+function updateNoticeSliderLabels(fontSize, lineHeight){
+  document.getElementById('noticeFontSlider').value = fontSize.toFixed(1);
+  document.getElementById('noticeLineSlider').value = lineHeight.toFixed(2);
+  document.getElementById('noticeFontLabel').textContent = fontSize.toFixed(1) + 'pt';
+  document.getElementById('noticeLineLabel').textContent = lineHeight.toFixed(2);
+}
+
+function updatePageFitStatus(){
+  const page = document.getElementById('page');
+  const statusEl = document.getElementById('pageFitStatus');
+  const targetPx = PAGE_HEIGHT_MM * MM_TO_PX;
+  if(page.offsetHeight > targetPx + 2){
+    statusEl.textContent = '⚠ 内容が1ページに収まっていません（印刷すると2ページ目に続きます）。連絡事項を短くするか、文字サイズ・行間を調整してください。';
+    statusEl.style.color = '#c62828';
+  } else {
+    statusEl.textContent = '✓ A4 1ページに収まっています。';
+    statusEl.style.color = '#2e7d32';
+  }
+}
+
+function refreshNoticeSizing(){
+  const autoFit = document.getElementById('noticeAutoFit').checked;
+  let result;
+  if(autoFit){
+    result = fitNoticeToPage();
+    updateNoticeSliderLabels(result.fontSize, result.lineHeight);
+  } else {
+    result = applyManualNoticeSize();
+    updateNoticeSliderLabels(result.fontSize, result.lineHeight);
+  }
+  updatePageFitStatus();
+}
+
+document.getElementById('noticeAutoFit').addEventListener('change', ()=>{
+  const sliders = [document.getElementById('noticeFontSlider'), document.getElementById('noticeLineSlider')];
+  const autoFit = document.getElementById('noticeAutoFit').checked;
+  sliders.forEach(s => s.disabled = autoFit);
+  refreshNoticeSizing();
+  saveState();
+});
+document.getElementById('noticeFontSlider').addEventListener('input', ()=>{
+  if(document.getElementById('noticeAutoFit').checked) return;
+  refreshNoticeSizing();
+  saveState();
+});
+document.getElementById('noticeLineSlider').addEventListener('input', ()=>{
+  if(document.getElementById('noticeAutoFit').checked) return;
+  refreshNoticeSizing();
+  saveState();
+});
+// 初期状態：自動調整ONなのでスライダーは無効表示
+document.getElementById('noticeFontSlider').disabled = true;
+document.getElementById('noticeLineSlider').disabled = true;
+
 const MM_TO_PX = 96 / 25.4;
 const BASE_CELL_MM = 26;   // table.cal td の基準の高さ
 const DAYNUM_MM = 5;       // 日付数字部分のおおよその高さ
@@ -720,6 +852,8 @@ function renderPreview(){
 
   document.getElementById('p_portal').style.display =
     document.getElementById('showPortal').checked ? 'flex' : 'none';
+
+  refreshNoticeSizing();
 }
 
 /* ---------- 保存・復元 ---------- */
@@ -736,6 +870,9 @@ function saveState(){
     noticeTitle: document.getElementById('noticeTitle').value,
     noticeBody: document.getElementById('noticeBody').value,
     showPortal: document.getElementById('showPortal').checked,
+    noticeAutoFit: document.getElementById('noticeAutoFit').checked,
+    noticeFontSize: document.getElementById('noticeFontSlider').value,
+    noticeLineHeight: document.getElementById('noticeLineSlider').value,
     useLogoImage: document.getElementById('useLogoImage').checked,
     logoImageData: logoImageData,
     events: collectEvents()
@@ -756,6 +893,9 @@ function blankFields(){
   document.getElementById('noticeTitle').value = '連絡事項';
   document.getElementById('noticeBody').value = '';
   document.getElementById('showPortal').checked = true;
+  document.getElementById('noticeAutoFit').checked = true;
+  document.getElementById('noticeFontSlider').disabled = true;
+  document.getElementById('noticeLineSlider').disabled = true;
   logoImageData = null;
   document.getElementById('logoFile').value = '';
   document.getElementById('useLogoImage').checked = false;
@@ -805,6 +945,11 @@ function loadState(){
   document.getElementById('noticeTitle').value = state.noticeTitle ?? '連絡事項';
   document.getElementById('noticeBody').value = state.noticeBody ?? '';
   document.getElementById('showPortal').checked = state.showPortal !== false;
+  document.getElementById('noticeAutoFit').checked = state.noticeAutoFit !== false;
+  if(state.noticeFontSize) document.getElementById('noticeFontSlider').value = state.noticeFontSize;
+  if(state.noticeLineHeight) document.getElementById('noticeLineSlider').value = state.noticeLineHeight;
+  document.getElementById('noticeFontSlider').disabled = document.getElementById('noticeAutoFit').checked;
+  document.getElementById('noticeLineSlider').disabled = document.getElementById('noticeAutoFit').checked;
   logoImageData = state.logoImageData || null;
   document.getElementById('useLogoImage').checked = !!(state.useLogoImage && logoImageData);
   showLogoPreview();
